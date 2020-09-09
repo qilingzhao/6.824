@@ -1,15 +1,20 @@
 package mr
 
-import "log"
-import "net"
-import "os"
-import "net/rpc"
-import "net/http"
+import (
+	`log`
+	`sync`
+	`time`
+	"net"
+	"os"
+	"net/rpc"
+	"net/http"
+)
 
 
 type Master struct {
 	// Your definitions here.
-
+	workKeepLiveMu		*sync.RWMutex
+	workLatestKeepLive	map[uint32]*time.Time
 }
 
 // Your code here -- RPC handlers for the worker to call.
@@ -24,11 +29,24 @@ func (m *Master) Example(args *ExampleArgs, reply *ExampleReply) error {
 	return nil
 }
 
+func (m *Master) WorkerKeepLive(args *WorkerKeepLiveArgs, reply *WorkerKeepLiveReply) error {
+	m.workKeepLiveMu.Lock()
+	defer m.workKeepLiveMu.Unlock()
+	if args.WorkId == 0 {
+		workerCnt := len(m.workLatestKeepLive)
+		reply.ConfirmedWorkId = uint32(workerCnt) + 1
+		m.workLatestKeepLive[reply.ConfirmedWorkId] = args.CreateTime
+	} else if args.WorkId != 0 {
+		m.workLatestKeepLive[args.WorkId] = args.CreateTime
+	}
+	return nil
+}
 
 //
 // start a thread that listens for RPCs from worker.go
 //
 func (m *Master) server() {
+	// 这里会注册所有Master内的方法
 	rpc.Register(m)
 	rpc.HandleHTTP()
 	//l, e := net.Listen("tcp", ":1234")
@@ -61,10 +79,22 @@ func (m *Master) Done() bool {
 //
 func MakeMaster(files []string, nReduce int) *Master {
 	m := Master{}
-
+	m.workLatestKeepLive = make(map[uint32]*time.Time, 0)
+	m.workKeepLiveMu = &sync.RWMutex{}
 	// Your code here.
 
-
+	go func() {
+		t := time.NewTicker(1*time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-t.C:
+				m.workKeepLiveMu.RLock()
+				log.Println(m.workLatestKeepLive)
+				m.workKeepLiveMu.RUnlock()
+			}
+		}
+	}()
 	m.server()
 	return &m
 }

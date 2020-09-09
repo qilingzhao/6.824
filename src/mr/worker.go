@@ -1,6 +1,9 @@
 package mr
 
-import "fmt"
+import (
+	`fmt`
+	`time`
+)
 import "log"
 import "net/rpc"
 import "hash/fnv"
@@ -32,10 +35,18 @@ func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
 
 	// Your worker implementation here.
-
+	workerId := CallWorkerKeepLive(0)
+	log.Println("workId is", workerId)
+	keepLiveTicker := time.NewTicker(10*time.Second)
+	defer keepLiveTicker.Stop()
+	for {
+		select {
+		case <-keepLiveTicker.C:
+			CallWorkerKeepLive(workerId)
+		}
+	}
 	// uncomment to send the Example RPC to the master.
 	// CallExample()
-
 }
 
 //
@@ -61,6 +72,15 @@ func CallExample() {
 	fmt.Printf("reply.Y %v\n", reply.Y)
 }
 
+func CallWorkerKeepLive(workId uint32) uint32 {
+	args := WorkerKeepLiveArgs{}
+	args.WorkId = workId
+	now := time.Now()
+	args.CreateTime = &now
+	reply := WorkerKeepLiveReply{}
+	call("Master.WorkerKeepLive", &args, &reply)
+	return reply.ConfirmedWorkId
+}
 //
 // send an RPC request to the master, wait for the response.
 // usually returns true.

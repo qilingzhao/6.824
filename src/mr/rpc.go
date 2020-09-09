@@ -6,7 +6,10 @@ package mr
 // remember to capitalize all names.
 //
 
-import "os"
+import (
+	`os`
+	`time`
+)
 import "strconv"
 
 //
@@ -22,6 +25,14 @@ type ExampleReply struct {
 	Y int
 }
 
+type WorkerKeepLiveArgs struct {
+	CreateTime *time.Time
+	WorkId	uint32
+}
+
+type WorkerKeepLiveReply struct {
+	ConfirmedWorkId	uint32
+}
 // Add your RPC definitions here.
 
 
